@@ -36,6 +36,8 @@ app.get('/api/health', async (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log('🔍 Testing database connection...');
+  console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+  console.log('🔄 Initializing database connection...');
   await testConnection();
+  console.log('🎉 Smart Canteen System is ready!');
 });
