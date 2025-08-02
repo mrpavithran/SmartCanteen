@@ -1,22 +1,31 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Database initialization
-export const initializeDatabase = async () => {
+// Test database connection
+export const testConnection = async () => {
   try {
-    // Create tables if they don't exist
-    const { error: usersError } = await supabase.rpc('create_users_table');
-    const { error: categoriesError } = await supabase.rpc('create_categories_table');
-    const { error: itemsError } = await supabase.rpc('create_items_table');
-    const { error: ordersError } = await supabase.rpc('create_orders_table');
-    const { error: walletError } = await supabase.rpc('create_wallet_table');
+    const { data, error } = await supabase
+      .from('users')
+      .select('count')
+      .limit(1);
 
-    console.log('✅ Database initialized successfully');
+    if (error) {
+      console.error('❌ Database connection failed:', error.message);
+      return false;
+    }
+
+    console.log('✅ Database connection successful');
+    return true;
   } catch (error) {
-    console.error('❌ Database initialization error:', error);
+    console.error('❌ Database connection error:', error.message);
+    return false;
   }
 };

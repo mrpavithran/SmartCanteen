@@ -44,7 +44,15 @@ router.post('/', authenticateToken, async (req, res) => {
 
     // Generate QR Code
     const qrData = `CANTEEN_${studentId}_${Date.now()}`;
-    const qrCodeUrl = await QRCode.toDataURL(qrData);
+    
+    // Generate QR code as data URL
+    let qrCodeUrl;
+    try {
+      qrCodeUrl = await QRCode.toDataURL(qrData);
+    } catch (qrError) {
+      console.error('QR Code generation error:', qrError);
+      qrCodeUrl = null;
+    }
 
     // Create user
     const { data: user, error } = await supabase
@@ -71,6 +79,7 @@ router.post('/', authenticateToken, async (req, res) => {
       qr_code_url: user.qr_code_url
     });
   } catch (error) {
+    console.error('User creation error:', error);
     if (error.code === '23505') {
       return res.status(400).json({ error: 'Student ID already exists' });
     }
