@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Coffee } from 'lucide-react';
+import { Plus, Edit, Trash2, Coffee, ToggleLeft, ToggleRight } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import EditCategoryModal from './EditCategoryModal';
+import EditItemModal from './EditItemModal';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 const MenuManagement = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deletingCategory, setDeletingCategory] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -14,7 +22,7 @@ const MenuManagement = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/menu/categories');
+      const response = await fetch('/api/categories');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -23,6 +31,60 @@ const MenuManagement = () => {
       console.error('Failed to fetch categories:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deletingCategory) return;
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/categories/${deletingCategory.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        fetchCategories();
+        setDeletingCategory(null);
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete category');
+      }
+    } catch (error) {
+      alert('Failed to delete category');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!deletingItem) return;
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/items/${deletingItem.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        fetchCategories();
+        setDeletingItem(null);
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete item');
+      }
+    } catch (error) {
+      alert('Failed to delete item');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -64,17 +126,29 @@ const MenuManagement = () => {
                 )}
               </div>
               <div className="flex space-x-2">
-                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded">
+                <button 
+                  onClick={() => setEditingCategory(category)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                  title="Edit Category"
+                >
                   <Edit className="h-4 w-4" />
                 </button>
-                <button className="p-2 text-red-600 hover:bg-red-50 rounded">
+                <button 
+                  onClick={() => setDeletingCategory(category)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded"
+                  title="Delete Category"
+                >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
             
             {/* Category Items Preview */}
-            <CategoryItems categoryId={category.id} />
+            <CategoryItems 
+              categoryId={category.id} 
+              onEditItem={setEditingItem}
+              onDeleteItem={setDeletingItem}
+            />
           </div>
         ))}
       </div>
@@ -87,7 +161,50 @@ const MenuManagement = () => {
         </div>
       )}
 
-      {/* Forms would go here */}
+      {/* Modals */}
+      {editingCategory && (
+        <EditCategoryModal
+          category={editingCategory}
+          onClose={() => setEditingCategory(null)}
+          onSuccess={() => {
+            setEditingCategory(null);
+            fetchCategories();
+          }}
+        />
+      )}
+
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          categories={categories}
+          onClose={() => setEditingItem(null)}
+          onSuccess={() => {
+            setEditingItem(null);
+            fetchCategories();
+          }}
+        />
+      )}
+
+      <DeleteConfirmModal
+        isOpen={!!deletingCategory}
+        onClose={() => setDeletingCategory(null)}
+        onConfirm={handleDeleteCategory}
+        title="Delete Category"
+        message="Are you sure you want to delete this category? This will also delete all items in this category."
+        itemName={deletingCategory?.name}
+        loading={deleteLoading}
+      />
+
+      <DeleteConfirmModal
+        isOpen={!!deletingItem}
+        onClose={() => setDeletingItem(null)}
+        onConfirm={handleDeleteItem}
+        title="Delete Item"
+        message="Are you sure you want to delete this menu item? This action cannot be undone."
+        itemName={deletingItem?.name}
+        loading={deleteLoading}
+      />
+
       {showCategoryForm && (
         <CategoryForm
           onClose={() => setShowCategoryForm(false)}
@@ -112,7 +229,7 @@ const MenuManagement = () => {
   );
 };
 
-const CategoryItems = ({ categoryId }) => {
+const CategoryItems = ({ categoryId, onEditItem, onDeleteItem }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -122,7 +239,7 @@ const CategoryItems = ({ categoryId }) => {
 
   const fetchItems = async () => {
     try {
-      const response = await fetch(`/api/menu/items/${categoryId}`);
+      const response = await fetch(`/api/items?category_id=${categoryId}`);
       if (response.ok) {
         const data = await response.json();
         setItems(data);
@@ -134,24 +251,77 @@ const CategoryItems = ({ categoryId }) => {
     }
   };
 
+  const toggleItemAvailability = async (item) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/items/${item.id}/availability`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_available: !item.is_available }),
+      });
+
+      if (response.ok) {
+        fetchItems();
+      }
+    } catch (error) {
+      console.error('Failed to toggle item availability:', error);
+    }
+  };
+
   if (loading) return <div className="text-sm text-gray-500">Loading items...</div>;
 
   return (
     <div className="space-y-2">
       <h4 className="font-medium text-gray-900">Items ({items.length})</h4>
       {items.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.id} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+            <div key={item.id} className="flex justify-between items-center p-3 bg-gray-50 rounded border">
               <div>
-                <span className="font-medium">{item.name}</span>
-                <span className="ml-2 text-green-600">₹{item.price}</span>
+                <div className="flex items-center space-x-2">
+                  <span className="font-medium">{item.name}</span>
+                  <span className="text-green-600 font-semibold">₹{item.price}</span>
+                  {!item.is_available && (
+                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                      Unavailable
+                    </span>
+                  )}
+                </div>
+                {item.description && (
+                  <p className="text-xs text-gray-500 mt-1">{item.description}</p>
+                )}
               </div>
-              <div className="flex space-x-1">
-                <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => toggleItemAvailability(item)}
+                  className={`p-1 rounded ${
+                    item.is_available 
+                      ? 'text-green-600 hover:bg-green-100' 
+                      : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                  title={item.is_available ? 'Mark as unavailable' : 'Mark as available'}
+                >
+                  {item.is_available ? (
+                    <ToggleRight className="h-4 w-4" />
+                  ) : (
+                    <ToggleLeft className="h-4 w-4" />
+                  )}
+                </button>
+                <button 
+                  onClick={() => onEditItem(item)}
+                  className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                  title="Edit Item"
+                >
                   <Edit className="h-3 w-3" />
                 </button>
-                <button className="p-1 text-red-600 hover:bg-red-100 rounded">
+                <button 
+                  onClick={() => onDeleteItem(item)}
+                  className="p-1 text-red-600 hover:bg-red-100 rounded"
+                  title="Delete Item"
+                >
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
@@ -180,7 +350,7 @@ const CategoryForm = ({ onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/menu/categories', {
+      const response = await fetch('/api/categories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -279,7 +449,7 @@ const ItemForm = ({ categories, onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/menu/items', {
+      const response = await fetch('/api/items', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -287,7 +457,8 @@ const ItemForm = ({ categories, onClose, onSuccess }) => {
         },
         body: JSON.stringify({
           ...formData,
-          price: parseFloat(formData.price)
+          price: parseFloat(formData.price),
+          category_id: formData.categoryId
         }),
       });
 

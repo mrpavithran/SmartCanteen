@@ -14,7 +14,7 @@ const MenuItems = ({ category, onBack }) => {
 
   const fetchItems = async () => {
     try {
-      const response = await fetch(`/api/menu/items/${category.id}`);
+      const response = await fetch(`/api/items?category_id=${category.id}&available_only=true`);
       if (response.ok) {
         const data = await response.json();
         setItems(data);
