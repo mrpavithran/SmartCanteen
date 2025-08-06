@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, QrCode, Eye } from 'lucide-react';
+import { Plus, Users, QrCode, Edit, Trash2, Download } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import EditUserModal from './EditUserModal';
+import DeleteConfirmModal from './DeleteConfirmModal';
+import QRCodeModal from './QRCodeModal';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedQR, setSelectedQR] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(null);
+  const [selectedQRUser, setSelectedQRUser] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -29,6 +35,64 @@ const UserManagement = () => {
       console.error('Failed to fetch users:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${deletingUser.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        fetchUsers();
+        setDeletingUser(null);
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete user');
+      }
+    } catch (error) {
+      alert('Failed to delete user');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleDownloadQR = async (user) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/qr/download/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download QR code');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `QR_${user.student_id}_${user.name.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      alert('Failed to download QR code');
     }
   };
 
@@ -64,7 +128,7 @@ const UserManagement = () => {
                 Wallet Balance
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                QR Code
+                Actions
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Created
@@ -99,13 +163,36 @@ const UserManagement = () => {
                   ₹{user.wallet_balance.toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <button
-                    onClick={() => setSelectedQR(user)}
-                    className="flex items-center space-x-1 text-blue-600 hover:text-blue-700"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    <span>View</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setSelectedQRUser(user)}
+                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                      title="View QR Code"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDownloadQR(user)}
+                      className="p-1 text-green-600 hover:bg-green-50 rounded"
+                      title="Download QR Code"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleEditUser(user)}
+                      className="p-1 text-yellow-600 hover:bg-yellow-50 rounded"
+                      title="Edit User"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeletingUser(user)}
+                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      title="Delete User"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(user.created_at).toLocaleDateString()}
@@ -116,38 +203,35 @@ const UserManagement = () => {
         </table>
       </div>
 
-      {/* QR Code Modal */}
-      {selectedQR && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">QR Code - {selectedQR.name}</h3>
-            <div className="text-center">
-              {selectedQR.qr_code_url ? (
-                <img
-                  src={selectedQR.qr_code_url}
-                  alt="QR Code"
-                  className="mx-auto mb-4"
-                />
-              ) : (
-                <div className="h-32 w-32 bg-gray-200 rounded-lg flex items-center justify-center mx-auto mb-4">
-                  <QrCode className="h-8 w-8 text-gray-400" />
-                </div>
-              )}
-              <p className="text-sm text-gray-600 mb-4">
-                Student ID: {selectedQR.student_id}
-              </p>
-            </div>
-            <button
-              onClick={() => setSelectedQR(null)}
-              className="w-full py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+      {/* Modals */}
+      {selectedQRUser && (
+        <QRCodeModal
+          user={selectedQRUser}
+          onClose={() => setSelectedQRUser(null)}
+        />
       )}
 
-      {/* Create User Form Modal would go here */}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSuccess={() => {
+            setEditingUser(null);
+            fetchUsers();
+          }}
+        />
+      )}
+
+      <DeleteConfirmModal
+        isOpen={!!deletingUser}
+        onClose={() => setDeletingUser(null)}
+        onConfirm={handleDeleteUser}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone."
+        itemName={deletingUser?.name}
+        loading={deleteLoading}
+      />
+
       {showCreateForm && (
         <CreateUserForm
           onClose={() => setShowCreateForm(false)}
