@@ -7,6 +7,9 @@ import userRoutes from './routes/users.js';
 import menuRoutes from './routes/menu.js';
 import orderRoutes from './routes/orders.js';
 import walletRoutes from './routes/wallet.js';
+import qrRoutes from './routes/qr.js';
+import categoryRoutes from './routes/categories.js';
+import itemRoutes from './routes/items.js';
 
 dotenv.config();
 
@@ -23,6 +26,9 @@ app.use('/api/users', userRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/qr', qrRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/items', itemRoutes);
 
 // Health check
 app.get('/api/health', async (req, res) => {

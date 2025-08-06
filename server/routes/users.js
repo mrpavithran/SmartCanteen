@@ -104,4 +104,74 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
+// Update user (Admin only)
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { name, student_id, role, wallet_balance } = req.body;
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (student_id !== undefined) updateData.student_id = student_id;
+    if (role !== undefined) updateData.role = role;
+    if (wallet_balance !== undefined) updateData.wallet_balance = parseFloat(wallet_balance);
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', id)
+      .select('id, name, student_id, role, wallet_balance, created_at')
+      .single();
+
+    if (error) throw error;
+
+    res.json(user);
+  } catch (error) {
+    console.error('User update error:', error);
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'Student ID already exists' });
+    }
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Delete user (Admin only)
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+
+    // Check if user has pending orders
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('user_id', id)
+      .in('status', ['pending', 'preparing', 'ready'])
+      .limit(1);
+
+    if (orders && orders.length > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete user with pending orders. Please complete or cancel orders first.' 
+      });
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 export default router;

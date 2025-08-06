@@ -21,7 +21,7 @@ const MenuCategories = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/menu/categories');
+      const response = await fetch('/api/categories');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
