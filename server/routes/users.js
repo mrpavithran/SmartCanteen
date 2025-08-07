@@ -42,8 +42,13 @@ router.post('/', authenticateToken, async (req, res) => {
     // Hash PIN
     const pinHash = await bcrypt.hash(pin, 10);
 
-    // Generate QR Code
-    const qrData = `CANTEEN_${studentId}_${Date.now()}`;
+    // Generate QR Code with embedded credentials
+    const qrData = JSON.stringify({
+      studentId: studentId,
+      password: pin, // Include password in QR for enhanced scanner
+      type: 'canteen_login',
+      timestamp: Date.now()
+    });
     
     // Generate QR code as data URL
     let qrCodeUrl;

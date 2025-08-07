@@ -33,7 +33,14 @@ router.post('/enhanced-login', async (req, res) => {
       'STU001': 'student123'
     };
 
-    const validPassword = demoPasswords[studentId] === password;
+    // Try bcrypt comparison first, fallback to demo passwords
+    let validPassword = false;
+    try {
+      validPassword = await bcrypt.compare(password, user.pin_hash);
+    } catch (bcryptError) {
+      // Fallback to demo password comparison
+      validPassword = demoPasswords[studentId] === password;
+    }
     
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });

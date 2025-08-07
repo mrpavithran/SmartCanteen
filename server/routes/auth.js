@@ -14,12 +14,32 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'QR Code and PIN are required' });
     }
 
-    // Find user by QR code
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('qr_code', qrCode)
-      .single();
+    let user = null;
+    let error = null;
+    
+    // Try to parse QR code as JSON first (new format)
+    try {
+      const qrData = JSON.parse(qrCode);
+      if (qrData.type === 'canteen_login') {
+        // Find user by student ID from QR data
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('student_id', qrData.studentId)
+          .single();
+        user = userData;
+        error = userError;
+      }
+    } catch (parseError) {
+      // Handle legacy QR code format
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('qr_code', qrCode)
+        .single();
+      user = userData;
+      error = userError;
+    }
 
     if (error || !user) {
       return res.status(401).json({ error: 'Invalid QR Code' });
@@ -33,7 +53,19 @@ router.post('/login', async (req, res) => {
       'DEMO_STUDENT': '1234'
     };
     
-    const validPin = pinMap[qrCode] === pin;
+    // Check PIN based on QR code format
+    let validPin = false;
+    try {
+      const qrData = JSON.parse(qrCode);
+      if (qrData.type === 'canteen_login') {
+        // For new format, validate against stored PIN hash
+        validPin = await bcrypt.compare(pin, user.pin_hash);
+      }
+    } catch (parseError) {
+      // Legacy format validation
+      validPin = pinMap[qrCode] === pin;
+    }
+    
     if (!validPin) {
       return res.status(401).json({ error: 'Invalid PIN' });
     }

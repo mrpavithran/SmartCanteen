@@ -102,7 +102,10 @@ const QRCodeModal = ({ user, onClose }) => {
             <div className="mb-4 text-sm text-gray-600">
               <p><strong>Name:</strong> {qrData.userData.name}</p>
               <p><strong>Student ID:</strong> {qrData.userData.studentId}</p>
-              <p><strong>QR Data:</strong> {qrData.userData.qrData}</p>
+              <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                <p><strong>QR Contains:</strong></p>
+                <p>Student ID and encrypted credentials</p>
+              </div>
             </div>
 
             <div className="flex space-x-3">

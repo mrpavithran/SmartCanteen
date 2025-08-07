@@ -75,22 +75,43 @@ const EnhancedQRScanner = ({ onScan, onClose, onManualLogin }) => {
       stopCamera();
       clearInterval(scanIntervalRef.current);
       
-      // Parse QR code data to extract student ID
+      // Parse QR code data to extract credentials
       const qrData = code.data;
       let studentId = '';
+      let password = '';
       
-      // Handle different QR code formats
-      if (qrData.includes('DEMO_')) {
-        studentId = qrData;
-      } else if (qrData.includes('CANTEEN_')) {
-        const parts = qrData.split('_');
-        studentId = parts[1] || qrData;
-      } else {
-        studentId = qrData;
+      try {
+        // Try to parse as JSON first (new format)
+        const parsedData = JSON.parse(qrData);
+        if (parsedData.type === 'canteen_login') {
+          studentId = parsedData.studentId;
+          password = parsedData.password;
+        }
+      } catch (e) {
+        // Handle legacy QR code formats
+        if (qrData.includes('DEMO_')) {
+          studentId = qrData;
+          // Set default passwords for demo accounts
+          const demoPasswords = {
+            'DEMO_ADMIN': 'admin123',
+            'DEMO_STAFF': 'staff123',
+            'DEMO_STUDENT': 'student123'
+          };
+          password = demoPasswords[qrData] || '';
+        } else if (qrData.includes('CANTEEN_')) {
+          const parts = qrData.split('_');
+          studentId = parts[1] || qrData;
+        } else {
+          studentId = qrData;
+        }
       }
       
       // Show manual login with pre-filled student ID
-      setManualCredentials(prev => ({ ...prev, studentId }));
+      setManualCredentials(prev => ({ 
+        ...prev, 
+        studentId,
+        password: password || prev.password
+      }));
       setShowManualLogin(true);
     }
   };

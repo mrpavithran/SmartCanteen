@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { QrCode, Eye, EyeOff, Camera, AlertCircle } from 'lucide-react';
-import QRScanner from '../components/QRScanner';
+import EnhancedQRScanner from '../components/EnhancedQRScanner';
 import LoadingSpinner from '../components/LoadingSpinner';
 import loginBackground from '../Assets/bkg2.jpg';
 import loginBackground2 from '../Assets/bkg3.jpg';
@@ -55,6 +55,12 @@ const LoginPage = ({ onLogin }) => {
   const handleQRScan = (result) => {
     setQrCode(result);
     setShowScanner(false);
+  };
+
+  const handleQRLogin = (loginData) => {
+    localStorage.setItem('token', loginData.token);
+    localStorage.setItem('user', JSON.stringify(loginData.user));
+    onLogin(loginData.user);
   };
 
   return (
@@ -175,9 +181,10 @@ const LoginPage = ({ onLogin }) => {
 
         {/* QR Scanner Modal */}
         {showScanner && (
-          <QRScanner
+          <EnhancedQRScanner
             onScan={handleQRScan}
             onClose={() => setShowScanner(false)}
+            onManualLogin={handleQRLogin}
           />
         )}
       </div>
