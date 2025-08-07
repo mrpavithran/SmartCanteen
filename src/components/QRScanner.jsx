@@ -1,16 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Camera, AlertCircle } from 'lucide-react';
+import jsQR from 'jsqr';
 
 const QRScanner = ({ onScan, onClose }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const scanIntervalRef = useRef(null);
 
   useEffect(() => {
     startCamera();
+
     return () => {
       stopCamera();
+      clearInterval(scanIntervalRef.current);
     };
   }, []);
 
@@ -19,10 +23,12 @@ const QRScanner = ({ onScan, onClose }) => {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play();
         setScanning(true);
+        startAutoScan(); // Start scanning automatically
       }
     } catch (err) {
       setError('Camera access denied or not available');
@@ -30,28 +36,36 @@ const QRScanner = ({ onScan, onClose }) => {
   };
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks();
-      tracks.forEach(track => track.stop());
+    const stream = videoRef.current?.srcObject;
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
     }
+    setScanning(false);
   };
 
-  const captureFrame = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  const startAutoScan = () => {
+    scanIntervalRef.current = setInterval(() => {
+      captureAndScan();
+    }, 1000); // scan every 1 second
+  };
 
-    const canvas = canvasRef.current;
+  const captureAndScan = () => {
     const video = videoRef.current;
-    const context = canvas.getContext('2d');
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
 
+    const context = canvas.getContext('2d');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Simulate QR code detection (in a real app, you'd use a QR code library)
-    // For demo purposes, we'll allow manual input
-    const demoQR = prompt('Enter QR code (or scan):');
-    if (demoQR) {
-      onScan(demoQR);
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+    if (code && code.data) {
+      stopCamera();
+      clearInterval(scanIntervalRef.current);
+      onScan(code.data);
     }
   };
 
@@ -61,8 +75,12 @@ const QRScanner = ({ onScan, onClose }) => {
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Scan QR Code</h3>
           <button
-            onClick={onClose}
+            onClick={() => {
+              stopCamera();
+              onClose();
+            }}
             className="p-1 hover:bg-gray-100 rounded"
+            aria-label="Close QR Scanner"
           >
             <X className="h-5 w-5" />
           </button>
@@ -86,10 +104,9 @@ const QRScanner = ({ onScan, onClose }) => {
                 ref={videoRef}
                 autoPlay
                 playsInline
-                className="w-full h-64 object-cover"
+                className="w-full h-64 object-cover rounded"
               />
               <canvas ref={canvasRef} className="hidden" />
-              
               {scanning && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-48 h-48 border-2 border-white border-dashed rounded-lg"></div>
@@ -97,17 +114,17 @@ const QRScanner = ({ onScan, onClose }) => {
               )}
             </div>
 
+            <p className="text-sm text-gray-500 text-center">
+              Position the QR code inside the frame. Scanning happens automatically.
+            </p>
+
             <button
-              onClick={captureFrame}
+              onClick={captureAndScan}
               className="w-full flex items-center justify-center space-x-2 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <Camera className="h-5 w-5" />
-              <span>Capture QR Code</span>
+              <span>Scan Now</span>
             </button>
-
-            <p className="text-sm text-gray-500 text-center">
-              Position the QR code within the frame and tap capture
-            </p>
           </div>
         )}
       </div>
